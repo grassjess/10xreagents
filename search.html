@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>10x Reagent Kit Search</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+      margin-top: 10px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    li {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .kit-info span {
+      display: inline-block;
+      margin-right: 15px;
+      font-weight: bold;
+    }
+
+    .no-results {
+      margin-top: 20px;
+      font-style: italic;
+      color: #666;
+    }
+    a {
+  display: block;
+  max-width: 200px;
+  margin: 20px auto;
+  text-decoration: none;
+}
+
+a.back-link {
+  display: inline-block;
+  margin-top: 40px;
+  text-decoration: none;
+  color: #000000;
+  font-weight: bold;
+  border: 2px solid #DCC3B4;
+  background-color: #F0EEEA;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+a.back-link:hover {
+  background-color: #DCC3B4;
+  color: #000000;
+}
+  </style>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Search 10x Reagent Kits</h1>
+      <div class="search-bar">
+  <input type="text" id="searchInput" placeholder="Search by name, type, version, storage..." />
+  <button id="searchButton">Search</button>
+</div>
+    </div>
+    <ul id="itemList"></ul>
+    <div id="noResults" class="no-results" style="display: none;">No matching kits found.</div>
+
+  <script>
+    window.onload = () => {
+      const firebaseConfig = {
+        apiKey: "AIzaSyDVSgVAuPCCJ3uVzUGqyQuDslBZNsNjmgQ",
+        authDomain: "reagentflow-9e244.firebaseapp.com",
+        projectId: "reagentflow-9e244",
+        storageBucket: "reagentflow-9e244.firebasestorage.app",
+        messagingSenderId: "243969938493",
+        appId: "1:243969938493:web:792bad6ae576630f888654"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
+      const searchInput = document.getElementById('searchInput');
+      const searchButton = document.getElementById('searchButton');
+      const itemList = document.getElementById('itemList');
+      const noResults = document.getElementById('noResults');
+
+      let allItems = [];
+
+      // 🔁 Real-time Firestore sync
+      db.collection('kits').onSnapshot(snapshot => {
+        allItems = [];
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.kitName) {
+            allItems.push({ ...data, id: doc.id });
+          }
+        });
+      });
+
+      // 🔍 Manual + Live Search Handler
+      const runSearch = () => {
+        const query = searchInput.value.toLowerCase().trim();
+        const filtered = allItems.filter(item =>
+          [item.kitName, item.kitType, item.storageTemperature]
+            .filter(Boolean)
+            .some(field => field.toLowerCase().includes(query))
+        );
+        renderResults(filtered);
+      };
+
+      // 🔄 Input + Button listeners
+          searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+              runSearch();
+            }
+          });
+
+searchButton.addEventListener('click', runSearch);
+
+      // 🎨 Render list results
+      function renderResults(results) {
+        itemList.innerHTML = '';
+        if (results.length === 0) {
+          noResults.style.display = 'block';
+        } else {
+          noResults.style.display = 'none';
+          results.forEach(item => {
+            const li = document.createElement('li');
+              li.innerHTML = `
+                <div class="kit-info">
+                  <span>${item.kitName || 'Unnamed Kit'}</span><br />
+                  Product #: ${item.productNumber || 'n/a'} |
+                  Type: ${item.kitType || 'n/a'} |
+                  Chemistry: ${item.chemistry || 'n/a'} |
+                  Total Rxns: ${item.totalReactions || 'n/a'} |
+                  Rxns Left: ${item.reactionsLeft || 'n/a'} |
+                  Lot #: ${item.lotNumber || 'n/a'} |
+                  Exp: ${item.expirationDate || 'n/a'} |
+                  Storage: ${item.storageTemperature || 'n/a'} |
+                  Location: ${item.location || 'n/a'}
+                </div>
+              `;
+            itemList.appendChild(li);
+          });
+        }
+      }
+    };
+  </script>
+<a href="main-page-layout.html" class="back-link">← Back</a>
+</body>
+</html>
