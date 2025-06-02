@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reagent Inventory</title>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      background-color: #fef6e4;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ffd5cd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #ffd5cd;
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="date"] {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 1em;
+      padding: 4px;
+    }
+    button {
+      padding: 6px 10px;
+      background-color: #ffd5cd;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+    a {
+  display: block;
+  max-width: 200px;
+  margin: 20px auto;
+  text-decoration: none;
+}
+
+a.back-link {
+  display: inline-block;
+  margin-top: 40px;
+  text-decoration: none;
+  color: #000000;
+  font-weight: bold;
+  border: 2px solid #DCC3B4;
+  background-color: #F0EEEA;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+a.back-link:hover {
+  background-color: #DCC3B4;
+  color: #000000;
+}
+  </style>
+</head>
+
+<body>
+  <h1>10x Genomics Kit Inventory</h1>
+
+  <div style="align-items: flex-start; gap: 40px; margin-top: 20px;">
+    
+    <!-- Form + Title -->
+      <h2 style="margin-top: 0;">Add New Kit</h2>
+      <form id="add-kit-form">
+        <label>
+          Product Number:
+          <span>1000</span>
+          <input style="margin-bottom: 10px;" type="text" id="productNumberInput" maxlength="3" required />
+        </label><br />
+        <label>
+          Lot Number:
+          <input style="margin-bottom: 10px;" type="text" id="lotNumberInput" maxlength="6" required />
+        </label><br />
+        <label>
+          Expiration Date:
+          <input style="margin-bottom: 10px;" type="date" id="expirationDateInput" required />
+        </label><br />
+        <label>
+          Reactions Left:
+          <input style="margin-bottom: 10px;" type="number" id="reactionsLeftInput" min="0" required />
+        </label><br />
+        <label>
+          Location:
+          <select style="margin-bottom: 10px;" id="locationInput"required>
+            <option value="Dumbleodore">Dumbleodore</option>
+            <option value="Harry">Harry</option>
+            <option value="Headwig">Headwig</option>
+            <option value="Fred">Fred</option>
+            <option value="George">George</option>
+            <option value="Hermione">Hermione</option>
+            <option value="Cupboard">Cupboard</option>
+          </select>
+        </label><br />
+        <button type="submit" style="margin-bottom: 10px;">Add Kit</button>
+      </form>
+  </div>
+</body>
+
+<table border="1" id="kitsTable">
+  <thead>
+    <tr>
+      <th>Product Number</th>
+      <th>Kit Name</th>
+      <th>Kit Type</th>
+      <th>Chemistry</th>
+      <th>Total Rxns</th>
+      <th>Rxns Left</th>
+      <th>Lot Number</th>
+      <th>Expiration Date</th>
+      <th>Storage Temp</th>
+      <th>Location</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="kitsTableBody"></tbody>
+</table>
+
+<button style="margin-top: 10px;" onclick="exportKitsToCSV()">Download inventory as CSV</button>
+<br>
+<a href="main-page-layout.html" class="back-link">← Back</a>
+
+<script>
+  const kitInfoByProductNumber = {
+    "161": {
+      kitName: "Chromium Next GEM Chip H Single Cell Kit",
+      totalRxns: 6,
+      chemistry: "v2",
+      storageTemperature: "RT",
+      assay: "ATAC v2",
+      kitType: "Chip",
+      kitVersion: "Next GEM"
+    },
+    "162": {
+      kitName: "Chromium Next GEM Chip H Single Cell Kit",
+      totalRxns: 2,
+      chemistry: "v2",
+      storageTemperature: "RT",
+      assay: "ATAC v2",
+      kitType: "Chip",
+      kitVersion: "Next GEM"
+    },
+    "189": {
+      kitName: "Visium Spatial Gene Expression Reagent Kit",
+      totalRxns: 4,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Visium v1",
+      kitType: "Spatial reagents",
+      kitVersion: "Direct placement"
+    },
+    "190": {
+      kitName: "Library Construction Kit",
+      totalRxns: 16,
+      chemistry: "v3.1",
+      storageTemperature: "-20 C",
+      assay: "3' GEX v3.1",
+      kitType: "Lib reagents",
+      kitVersion: "Next-GEM"
+    },
+    "212": {
+      kitName: "Dual Index Kit N Set A",
+      totalRxns: 96,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "n/a",
+      kitType: "Index Plate",
+      kitVersion: "Next GEM"
+    },
+    "215": {
+      kitName: "Dual Index Kit TT Set A",
+      totalRxns: 96,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "n/a",
+      kitType: "Index Plate",
+      kitVersion: "GEM-X and Next GEM"
+    },
+    "230": {
+      kitName: "Chromium Next GEM Chip J Single Cell Kit",
+      totalRxns: 2,
+      chemistry: "v1",
+      storageTemperature: "RT",
+      assay: "Multiome",
+      kitType: "Chip",
+      kitVersion: "Next GEM"
+    },
+    "231": {
+      kitName: "Chromium Next GEM Single Cell Multiome Gel Beads A",
+      totalRxns: 16,
+      chemistry: "v1",
+      storageTemperature: "-80 C",
+      assay: "Multiome",
+      kitType: "Gel Beads",
+      kitVersion: "Next GEM"
+    },
+    "232": {
+      kitName: "Chromium Next GEM Single Cell Multiome GEM Kit A",
+      totalRxns: 16,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Multiome",
+      kitType: "GEM reagents",
+      kitVersion: "Next GEM"
+    },    
+    "233": {
+      kitName: "Chromium Next GEM Single Cell Multiome Amp Kit A",
+      totalRxns: 16,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Multiome",
+      kitType: "GEM reagents",
+      kitVersion: "Next GEM"
+    },      
+    "234": {
+      kitName: "Chromium Next GEM Chip J Single Cell Kit",
+      totalRxns: 6,
+      chemistry: "v1",
+      storageTemperature: "RT",
+      assay: "Multiome",
+      kitType: "Chip",
+      kitVersion: "Next GEM"
+    },
+    "235": {
+      kitName: "Chromium Next GEM Single Cell Multiome Gel Beads A",
+      totalRxns: 4,
+      chemistry: "v1",
+      storageTemperature: "-80 C",
+      assay: "Multiome",
+      kitType: "Gel Beads",
+      kitVersion: "Next GEM"
+    },
+    "236": {
+      kitName: "Chromium Next GEM Single Cell Multiome GEM Kit A",
+      totalRxns: 4,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Multiome",
+      kitType: "GEM reagents",
+      kitVersion: "Next GEM"
+    },    
+    "237": {
+      kitName: "Chromium Next GEM Single Cell Multiome Amp Kit A",
+      totalRxns: 4,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Multiome",
+      kitType: "GEM reagents",
+      kitVersion: "Next GEM"
+    },  
+    "242": {
+      kitName: "Dual Index Kit NT Set A",
+      totalRxns: 96,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "n/a",
+      kitType: "Index Plate",
+      kitVersion: "GEM-X and Next GEM"
+    },
+    "251": {
+      kitName: "Dual Index Kit TS Set A",
+      totalRxns: 96,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "n/a",
+      kitType: "Index Plate",
+      kitVersion: "GEM-X, Next GEM and Visium"
+    },
+    "252": {
+      kitName: "Chromium Single Cell Human TCR Amplification",
+      totalRxns: 16,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "5' GEX",
+      kitType: "TCR Human",
+      kitVersion: "GEM-X and Next GEM"
+    },
+    "253": {
+      kitName: "Chromium Single Cell Human BCR Amplification",
+      totalRxns: 16,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "5' GEX",
+      kitType: "BCR Human",
+      kitVersion: "GEM-X and Next GEM"
+    },    
+    "254": {
+      kitName: "Chromium Single Cell Mouse TCR Amplification",
+      totalRxns: 16,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "5' GEX",
+      kitType: "TCR Mouse",
+      kitVersion: "GEM-X and Next GEM"
+    },
+    "255": {
+      kitName: "Chromium Single Cell Mouse BCR Amplification",
+      totalRxns: 16,
+      chemistry: "n/a",
+      storageTemperature: "-20 C",
+      assay: "5' GEX",
+      kitType: "BCR Mouse",
+      kitVersion: "GEM-X and Next GEM"
+    },
+    "279": {
+      kitName: "Library Construction Kit B",
+      totalRxns: 4,
+      chemistry: "v3.1",
+      storageTemperature: "-20 C",
+      assay: "3' GEX v3.1",
+      kitType: "Lib reagents",
+      kitVersion: "Next-GEM"
+    },
+    "280": {
+      kitName: "Chromium Next GEM Single Cell Multiome ATAC Kit A",
+      totalRxns: 16,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Multiome",
+      kitType: "Transposition",
+      kitVersion: "Next GEM"
+    },    
+    "281": {
+      kitName: "Chromium Next GEM Single Cell Multiome ATAC Kit A",
+      totalRxns: 4,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Multiome",
+      kitType: "Transposition",
+      kitVersion: "Next GEM"
+    },    
+    "365": {
+      kitName: "Visium Mouse Transcriptome Probe Kit - Small",
+      totalRxns: 4,
+      chemistry: "v1",
+      storageTemperature: "-20 C",
+      assay: "Visium CytAssist",
+      kitType: "Mouse probes",
+      kitVersion: "CytAssist"
+    },
+    "391": {
+      kitName: "Chromium Next GEM Single Cell ATAC Gel Beads v2",
+      totalRxns: 16,
+      chemistry: "v2",
+      storageTemperature: "-80 C",
+      assay: "ATAC v2",
+      kitType: "Gel Beads",
+      kitVersion: "Next GEM"
+    },
+    "392": {
+      kitName: "Chromium Next GEM Single Cell ATAC Library Kit v2",
+      totalRxns: 16,
+      chemistry: "v2",
+      storageTemperature: "-20 C",
+      assay: "ATAC v2",
+      kitType: "GEM + Lib reagents",
+      kitVersion: "Next GEM"
+    },
+    "407": {
+      kitName: "Chromium Next GEM Single Cell ATAC Gel Beads v2",
+      totalRxns: 4,
+      chemistry: "v2",
+      storageTemperature: "-80 C",
+      assay: "ATAC v2",
+      kitType: "Gel Beads",
+      kitVersion: "Next GEM"
+    },
+    "408": {
+      kitName: "Chromium Next GEM Single Cell ATAC Library Kit v2",
+      totalRxns: 4,
+      chemistry: "v2",
+      storageTemperature: "-20 C",
+      assay: "ATAC v2",
+      kitType: "GEM + Lib reagents",
+      kitVersion: "Next GEM"
+    },    
+    "466": {
+      kitName: "Visium Human Transcriptome Probe Kit v2 - Small",
+      totalRxns: 4,
+      chemistry: "v2",
+      storageTemperature: "-20 C",
+      assay: "Visium",
+      kitType: "Human probes",
+      kitVersion: "CytAssist + HD"
+    },
+    "667": {
+      kitName: "Visium Mouse Transcriptome Probe Kit v2 - Small",
+      totalRxns: 4,
+      chemistry: "v2",
+      storageTemperature: "-20 C",
+      assay: "Visium HD",
+      kitType: "Mouse probes",
+      kitVersion: "HD"
+    },
+    "668": {
+      kitName: "Visium HD Reagent Kit – Small",
+      totalRxns: 4,
+      chemistry: "H1",
+      storageTemperature: "-20 C",
+      assay: "Visium HD",
+      kitType: "Visium reagents",
+      kitVersion: "HD"
+    },
+    "669": {
+      kitName: "Visium HD Cassettes, 6.5 mm",
+      totalRxns: 4,
+      chemistry: "H1",
+      storageTemperature: "RT",
+      assay: "Visium HD",
+      kitType: "Cassettes",
+      kitVersion: "HD"
+    },
+    "670": {
+      kitName: "HD slide, 6.5 mm",
+      totalRxns: 2,
+      chemistry: "H1",
+      storageTemperature: "-80 C",
+      assay: "Visium HD",
+      kitType: "Slides",
+      kitVersion: "HD"
+    },
+    "687": {
+      kitName: "Chromium GEM-X Single Cell 3’ Gel Bead Kit v4",
+      totalRxns: 4,
+      chemistry: "v4",
+      storageTemperature: "-80 C",
+      assay: "3' GEX v4",
+      kitType: "Gel Beads",
+      kitVersion: "GEM-X"
+    },
+    "688": {
+      kitName: "Chromium GEM-X Single Cell 3’ GEM Kit v4",
+      totalRxns: 4,
+      chemistry: "v4",
+      storageTemperature: "-20 C",
+      assay: "3' GEX v4",
+      kitType: "GEM reagents",
+      kitVersion: "GEM-X"
+    },
+    "689": {
+      kitName: "Library Construction Kit C",
+      totalRxns: 4,
+      chemistry: "v4",
+      storageTemperature: "-20 C",
+      assay: "3' GEX v4",
+      kitType: "Lib reagents",
+      kitVersion: "GEM-X"
+    },
+    "690": {
+      kitName: "Chromium GEM-X Single Cell 3' Chip Kit v4",
+      totalRxns: 4,
+      chemistry: "v4",
+      storageTemperature: "RT",
+      assay: "3' GEX v4",
+      kitType: "Chip",
+      kitVersion: "GEM-X"
+    },
+    "692": {
+      kitName: "Chromium GEM-X Single Cell 3’ Gel Bead Kit v4",
+      totalRxns: 16,
+      chemistry: "v4",
+      storageTemperature: "-80 C",
+      assay: "3' GEX v4",
+      kitType: "Gel Beads",
+      kitVersion: "GEM-X"
+    },
+    "693": {
+      kitName: "Chromium GEM-X Single Cell 3’ GEM Kit v4",
+      totalRxns: 16,
+      chemistry: "v4",
+      storageTemperature: "-20 C",
+      assay: "3' GEX v4",
+      kitType: "GEM reagents",
+      kitVersion: "GEM-X"
+    },
+    "694": {
+      kitName: "Library Construction Kit C",
+      totalRxns: 16,
+      chemistry: "v4",
+      storageTemperature: "-20 C",
+      assay: "3' GEX v4",
+      kitType: "Lib reagents",
+      kitVersion: "GEM-X"
+    },
+    "696": {
+      kitName: "Chromium GEM-X Single Cell 5' Gel Bead Kit v3",
+      totalRxns: 4,
+      chemistry: "v3",
+      storageTemperature: "-80 C",
+      assay: "5' GEX v3",
+      kitType: "Gel Beads",
+      kitVersion: "GEM-X"
+    },
+    "697": {
+      kitName: "Chromium GEM-X Single Cell 5’ GEM Kit v3",
+      totalRxns: 4,
+      chemistry: "v3",
+      storageTemperature: "-20 C",
+      assay: "5' GEX v3",
+      kitType: "GEM reagents",
+      kitVersion: "GEM-X"
+    },
+    "698": {
+      kitName: "Chromium GEM-X Single Cell 5' Chip Kit v3",
+      totalRxns: 4,
+      chemistry: "v3",
+      storageTemperature: "RT",
+      assay: "5' GEX v3",
+      kitType: "Chip",
+      kitVersion: "GEM-X"
+    },
+    "700": {
+      kitName: "Chromium GEM-X Single Cell 5' Gel Bead Kit v3",
+      totalRxns: 16,
+      chemistry: "v3",
+      storageTemperature: "-80 C",
+      assay: "5' GEX v3",
+      kitType: "Gel Beads",
+      kitVersion: "GEM-X"
+    },
+    "701": {
+      kitName: "Chromium GEM-X Single Cell 5’ GEM Kit v3",
+      totalRxns: 16,
+      chemistry: "v3",
+      storageTemperature: "-20 C",
+      assay: "5' GEX v3",
+      kitType: "GEM reagents",
+      kitVersion: "GEM-X"
+    },
+    "747": {
+      kitName: "GEM-X OCM 3' Chip Kit v4 4-plex",
+      totalRxns: 2,
+      chemistry: "v4",
+      storageTemperature: "RT",
+      assay: "3' GEX OCM v4",
+      kitType: "Chip",
+      kitVersion: "GEM-X"
+    },
+    "749": {
+      kitName: "GEM-X OCM 3' Gel Bead Kit v4",
+      totalRxns: 16,
+      chemistry: "v4",
+      storageTemperature: "-80 C",
+      assay: "3' GEX OCM v4",
+      kitType: "Gel Beads",
+      kitVersion: "GEM-X"
+    },
+    "781": {
+      kitName: "GEM-X Flex Sample Preparation v2",
+      totalRxns: 48,
+      chemistry: "v2",
+      storageTemperature: "-20 C",
+      assay: "Flex v2",
+      kitType: "Sample prep",
+      kitVersion: "GEM-X"
+    },
+    "790": {
+      kitName: "GEM-X Flex Gel Bead Kit",
+      totalRxns: 4,
+      chemistry: "v2",
+      storageTemperature: "-80 C",
+      assay: "Flex v2",
+      kitType: "Gel Beads",
+      kitVersion: "GEM-X"
+    }
+  };
+  
+  document.getElementById("add-kit-form").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const lastThreeDigits = document.getElementById("productNumberInput").value;
+    const fullProductNumber = `1000${lastThreeDigits}`;
+    const lotNumber = document.getElementById("lotNumberInput").value;
+    const expirationDate = document.getElementById("expirationDateInput").value;
+    const reactionsLeft = Number(document.getElementById("reactionsLeftInput").value);
+    const location = document.getElementById("locationInput").value;
+    const productKey = lastThreeDigits;
+    const kitInfo = kitInfoByProductNumber[productKey];
+
+    if (!/^\d{3}$/.test(lastThreeDigits)) {
+  alert("Product number suffix must be exactly 3 digits.");
+  return;
+}
+    if (!/^\d{6}$/.test(lotNumber)) {
+    alert("Lot number must be exactly 6 digits.");
+    return;
+  }
+    if (!kitInfo) {
+      alert("Invalid product number.");
+      return;
+    }
+
+    if (reactionsLeft > kitInfo.totalRxns) {
+      alert("Reactions left cannot exceed total reactions.");
+      return;
+    }
+
+    try {
+      await db.collection("kits").add({
+        productNumber: fullProductNumber,
+        kitName: kitInfo.kitName,
+        kitType: kitInfo.kitType,
+        chemistry: kitInfo.chemistry,
+        totalRxns: kitInfo.totalRxns,
+        rxnsLeft: reactionsLeft,
+        lotNumber,
+        expirationDate,
+        storageTemperature: kitInfo.storageTemperature,
+        location
+      });
+      alert("Kit added successfully.");
+      loadKits();
+    } catch (error) {
+      console.error("Error adding document: ", error);
+    }
+  });
+
+  async function loadKits() {
+    const tableBody = document.getElementById("kitsTableBody");
+    tableBody.innerHTML = "";
+    try {
+      const snapshot = await db.collection("kits").get();
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${data.productNumber}</td>
+          <td>${data.kitName}</td>
+          <td>${data.kitType}</td>
+          <td>${data.chemistry}</td>
+          <td>${data.totalRxns}</td>
+          <td><input type="number" id="rxnsInput-${doc.id}" value="${data.rxnsLeft}" min="0" max="${data.totalRxns}" style="width: 60px;" disabled /></td>
+        <td>${data.lotNumber}</td>
+          <td>${data.expirationDate}</td>
+          <td>${data.storageTemperature}</td>
+          <td>${data.location}</td>
+          <td><button onclick="toggleEdit('${doc.id}', ${data.totalRxns})" id="editBtn-${doc.id}">Edit</button></td>
+        `;
+        tableBody.appendChild(row);
+      });
+    } catch (error) {
+      console.error("Error loading kits: ", error);
+    }
+  }
+  
+  // Your Firebase configuration object — replace with your actual values
+  const firebaseConfig = {
+  apiKey: "AIzaSyDVSgVAuPCCJ3uVzUGqyQuDslBZNsNjmgQ",
+  authDomain: "reagentflow-9e244.firebaseapp.com",
+  databaseURL: "https://reagentflow-9e244-default-rtdb.firebaseio.com",
+  projectId: "reagentflow-9e244",
+  storageBucket: "reagentflow-9e244.firebasestorage.app",
+  messagingSenderId: "243969938493",
+  appId: "1:243969938493:web:792bad6ae576630f888654"
+};
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  loadKits();
+  
+  async function toggleEdit(docId, maxRxns) {
+  const input = document.getElementById(`rxnsInput-${docId}`);
+  const button = document.getElementById(`editBtn-${docId}`);
+
+  if (input.disabled) {
+    input.disabled = false;
+    button.textContent = "Save";
+  } else {
+    const newValue = Number(input.value);
+    if (newValue < 0 || newValue > maxRxns) {
+      alert(`Value must be between 0 and ${maxRxns}`);
+      return;
+    }
+
+    try {
+      await db.collection("kits").doc(docId).update({ rxnsLeft: newValue });
+      input.disabled = true;
+      button.textContent = "Edit";
+    } catch (error) {
+      console.error("Error updating reactions left:", error);
+      alert("Error saving value.");
+    }
+  }
+}
+
+  async function updateRxnsLeft(docId, maxRxns) {
+  const input = document.getElementById(`rxnsInput-${docId}`);
+  const newValue = Number(input.value);
+
+  if (isNaN(newValue) || newValue < 0 || newValue > maxRxns) {
+    alert(`Rxns Left must be a number between 0 and ${maxRxns}`);
+    return;
+  }
+
+  try {
+    await db.collection("kits").doc(docId).update({
+      rxnsLeft: newValue
+    });
+    alert("Rxns Left updated successfully.");
+    loadKits();
+  } catch (error) {
+    console.error("Error updating rxnsLeft: ", error);
+    alert("Failed to update Rxns Left.");
+  }
+};
+  
+  async function exportKitsToCSV() {
+  try {
+    const snapshot = await db.collection("kits").get();
+    const kits = [];
+
+    snapshot.forEach(doc => {
+      kits.push(doc.data());
+    });
+
+    if (kits.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+
+    const headers = Object.keys(kits[0]);
+    const csvRows = [headers.join(",")];
+
+    kits.forEach(kit => {
+      const values = headers.map(header => {
+        const value = kit[header];
+        return typeof value === "string" && value.includes(",") ? `"${value}"` : value;
+      });
+      csvRows.push(values.join(","));
+    });
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "kits_export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Error exporting CSV: ", error);
+  }
+};
+</script>
